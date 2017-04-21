@@ -10,7 +10,7 @@ The real data was downloaded from IMDB. We are processing only movies from the T
 
 In the ```actor_data``` files you have three columns separated by tabulators: actor name, movie title, movie year; while in the ```movie_rating``` files the columns are: rating (1-10), movie title, movie year. Each line in the movie rating file corresponds to 1000 similar votes in the real life. It is possible that there are different movies with the same title in different years, so you need to identify the movie by both title and year.
 
-To make the homework easier, I generated the input files in the way that you can expect **all the votes on a movie arriving in the year of its release**. So in other words: you don't need to care now with *late arrivals*.
+To make the homework easier, I generated the input files in the way that you can expect **all the votes on a movie arriving in the year of its release**. So in other words: you don't need to care now with *late arrivals* when you join the rating and the actor streams.
 
 
 ## Setting up the development environment
