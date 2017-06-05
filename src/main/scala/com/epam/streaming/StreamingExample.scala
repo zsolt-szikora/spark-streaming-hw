@@ -13,8 +13,8 @@ object StreamingExample {
   def main(args: Array[String]): Unit = {
     require(args.length == 4, "Provide parameters in this order: actorsDataFolderPath, ratingEventsDataFolderPath, minimumNumberOfVotes, minimumNumberOfMovies")
 
-    val actorsFolder = args(0);
-    val ratingFolder = args(1);
+    val actorsFolder = args(0)
+    val ratingFolder = args(1)
     val minimumNumberOfVotes = args(2).toInt
     val minimumNumberOfMovies = args(3).toInt
 
@@ -67,7 +67,6 @@ object StreamingExample {
       })
 
 
-
     // =========================================   TASK 3:   =========================================
     // |   printing out the 10 best busy actors (those, who get the highest average rates and also   |
     // |   played in at least 'minimumNumberOfMovies' movies). We don't care about the number of     |
@@ -101,9 +100,16 @@ object StreamingExample {
     */
   def task1(actorsOfMovies: InputDStream[String]): DStream[(String, Long)] = {
 
-    // == DELETE THE NEXT LINE AND ADD YOUR OWN IMPLEMENTATION ==
-    actorsOfMovies.map(line => ("Chuck Norris!", 100000L))
+    val stringArrayStream = actorsOfMovies.map(line => line.split("\t"))
+    val pairs = stringArrayStream.map(stringArray => (stringArray(0), 1L))
 
+    def updateFunction(newValues: Seq[Long], runningCount: Option[Long]): Some[Long] = {
+      // Note: newValues.sum === newValues.size and the latter is quicker
+      val newCount = runningCount.getOrElse(0L) + newValues.size
+      Some(newCount)
+    }
+
+    pairs.updateStateByKey(updateFunction)
   }
 
 
@@ -112,9 +118,9 @@ object StreamingExample {
     *
     * You need to calculate the average rate by taking all the votes into account (and not by taking the average of the averages)
     *
-    * @param actorsOfMovies       each line of the actor data input file fetched in the given microbatch
-    * @param movieRatingEvents    each line of the movie rating data input file fetched in the given microbatch
-    *                             NOTE! each line in the data file means 1000 votes
+    * @param actorsOfMovies    each line of the actor data input file fetched in the given microbatch
+    * @param movieRatingEvents each line of the movie rating data input file fetched in the given microbatch
+    *                          NOTE! each line in the data file means 1000 votes
     * @return a DStream of:
     *         - actor name,
     *         - number of votes since the beginning of time for the movies where the actor playes,
@@ -123,10 +129,33 @@ object StreamingExample {
   def task2(actorsOfMovies: InputDStream[String], movieRatingEvents: InputDStream[String]): DStream[(String, Long, Float)] = {
 
     // == DELETE THE NEXT LINE AND ADD YOUR OWN IMPLEMENTATION ==
-    actorsOfMovies.map(line => ("Chuck Norris!", 10000000L, 10.0f))
 
+    val MovieYear2Actor: DStream[(String, String)] = actorsOfMovies
+      .map(line => line.split("\t"))
+      .map(stringArray => (stringArray(1) + stringArray(2), stringArray(0)))
+
+    val movieYear2rating: DStream[(String, Double)] = movieRatingEvents
+      .map(line => line.split("\t"))
+      .map(stringArray => (stringArray(1) + stringArray(2), stringArray(0).toDouble))
+
+    val actor2OneAndrating: DStream[(String, (Long, Double))] = MovieYear2Actor
+      .join(movieYear2rating)
+      .map { case (movieYear, (actor, rating)) => (actor, (1L, rating)) }
+
+    val updateFunction = (newRatingsAndVotes: Seq[(Long, Double)], runningState: Option[(Long, Double)]) => {
+      val valuesSofar: (Long, Double) = runningState.getOrElse(0L, 0d)
+      val updatedValues = newRatingsAndVotes.fold(valuesSofar) {
+        case ((vote, rating), (otherVote, otherRating)) => (vote + otherVote, rating + otherRating)
+      }
+      Some(updatedValues)
+    }
+
+    val updatedState: DStream[(String, (Long, Double))] = actor2OneAndrating.updateStateByKey(updateFunction)
+
+    updatedState.map {
+      case (actor, (votes, ratings)) => (actor, 1000L * votes, (ratings / votes).toFloat)
+    }
   }
-
 
   /**
     * function implementing task 3
@@ -144,7 +173,13 @@ object StreamingExample {
             minimumNumberOfMovies: Int): DStream[(String, Float, Long)] = {
 
     // == DELETE THE NEXT LINE AND ADD YOUR OWN IMPLEMENTATION ==
-    numberOfMoviesByActors.map(line => ("Chuck Norris!", 10.0f, 100000L))
+
+    val actors2VotesAndRatings = actorRatingsSinceBeginningOfTime.map { case (actor, voteCount, ratingAvg) => (actor, (voteCount, ratingAvg)) }
+
+    numberOfMoviesByActors
+      .filter { case (_, movieCount) => movieCount >= minimumNumberOfMovies }
+      .join(actors2VotesAndRatings)
+      .map { case (actor, (movieCount, (_, ratingAvg))) => (actor, ratingAvg, movieCount) }
 
   }
 
